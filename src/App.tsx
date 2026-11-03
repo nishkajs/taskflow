@@ -5,15 +5,24 @@ import {
   Layers3,
   Plus,
   RefreshCw,
-  CalendarDays,
   AlertCircle,
   CheckCircle2,
-  Circle,
   Clock3,
   ListFilter,
   X,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+
+import KanbanColumn from './components/KanbanColumn'
 import './App.css'
 
 type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done'
@@ -47,7 +56,8 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshCount, setRefreshCount] = useState(0)
-
+  const [movingTaskId, setMovingTaskId] = useState<string | null>(null)
+  const [moveError, setMoveError] = useState('')
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [taskTitle, setTaskTitle] = useState('')
@@ -57,6 +67,14 @@ function App() {
   const [creatingTask, setCreatingTask] = useState(false)
   const [taskError, setTaskError] = useState('')
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  )
 
   useEffect(() => {
     let active = true
@@ -173,6 +191,70 @@ function App() {
       )
     } finally {
       setCreatingTask(false)
+    }
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+
+    if (!over || movingTaskId) return
+
+    const taskId = String(active.id)
+    const newStatus = String(over.id) as TaskStatus
+
+    const validStatuses: TaskStatus[] = [
+      'todo',
+      'in_progress',
+      'in_review',
+      'done',
+    ]
+
+    if (!validStatuses.includes(newStatus)) return
+
+    const task = tasks.find((task) => task.id === taskId)
+
+    if (!task || task.status === newStatus) return
+
+    const previousStatus = task.status
+
+    setMovingTaskId(taskId)
+    setMoveError('')
+
+    setTasks((currentTasks) =>
+      currentTasks.map((currentTask) =>
+        currentTask.id === taskId
+          ? { ...currentTask, status: newStatus }
+          : currentTask
+      )
+    )
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({ status: newStatus })
+        .eq('id', taskId)
+        .eq('user_id', task.user_id)
+        .select('id')
+        .single()
+
+      if (error) throw error
+      if (!data) throw new Error('Task update was not saved')
+    } catch (err) {
+      setTasks((currentTasks) =>
+        currentTasks.map((currentTask) =>
+          currentTask.id === taskId
+            ? { ...currentTask, status: previousStatus }
+            : currentTask
+        )
+      )
+
+      setMoveError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to move task. Please try again.'
+      )
+    } finally {
+      setMovingTaskId(null)
     }
   }
 
@@ -315,72 +397,42 @@ function App() {
               </button>
             </div>
           ) : (
-            <div className="kanban-board">
-              {columns.map((column) => {
-                const columnTasks = tasks.filter(
-                  (task) => task.status === column.id
-                )
+            <>
+              {moveError && (
+                <div className="board-error" role="alert">
+                  <AlertCircle size={16} />
+                  <span>{moveError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setMoveError('')}
+                    aria-label="Dismiss error"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
 
-                return (
-                  <section className="kanban-column" key={column.id}>
-                    <div className="column-header">
-                      <div className="column-title">
-                        <span
-                          className="column-dot"
-                          style={{ background: column.color }}
-                        />
-                        <h3>{column.title}</h3>
-                        <span className="task-count">
-                          {columnTasks.length}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="column-body">
-                      {columnTasks.length === 0 ? (
-                        <div className="empty-column">
-                          <Circle size={22} strokeWidth={1.5} />
-                          <span>No tasks yet</span>
-                        </div>
-                      ) : (
-                        columnTasks.map((task) => (
-                          <article className="task-card" key={task.id}>
-                            <div className="task-card-top">
-                              <span className="task-type">
-                                TASK
-                              </span>
-                              <span
-                                className={`priority-badge ${task.priority}`}
-                              >
-                                <span className="priority-dot" />
-                                {task.priority}
-                              </span>
-                            </div>
-
-                            <h4>{task.title}</h4>
-
-                            {task.description && (
-                              <p className="task-description">
-                                {task.description}
-                              </p>
-                            )}
-
-                            <div className="task-card-footer">
-                              <span className="task-date">
-                                <CalendarDays size={13} />
-                                {task.due_date ?? 'No due date'}
-                              </span>
-
-                              <div className="task-avatar">G</div>
-                            </div>
-                          </article>
-                        ))
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="kanban-board">
+                  {columns.map((column) => (
+                    <KanbanColumn
+                      key={column.id}
+                      id={column.id}
+                      title={column.title}
+                      color={column.color}
+                      tasks={tasks.filter(
+                        (task) => task.status === column.id
                       )}
-                    </div>
-                  </section>
-                )
-              })}
-            </div>
+                      disabled={movingTaskId !== null}
+                    />
+                  ))}
+                </div>
+              </DndContext>
+            </>
           )}
         </div>
       </main>
