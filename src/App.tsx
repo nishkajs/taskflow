@@ -5,6 +5,7 @@ import {
   Layers3,
   Plus,
   RefreshCw,
+  Search,
   AlertCircle,
   CheckCircle2,
   Clock3,
@@ -58,6 +59,9 @@ function App() {
   const [refreshCount, setRefreshCount] = useState(0)
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null)
   const [moveError, setMoveError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
@@ -375,6 +379,27 @@ function App() {
     }
   }
 
+  const filteredTasks = tasks.filter((task) => {
+    const query = searchQuery.trim().toLowerCase()
+
+    const matchesSearch =
+      task.title.toLowerCase().includes(query) ||
+      (task.description ?? '').toLowerCase().includes(query)
+
+    const matchesPriority =
+      priorityFilter === 'all' || task.priority === priorityFilter
+
+    const matchesStatus =
+      statusFilter === 'all' || task.status === statusFilter
+
+    return matchesSearch && matchesPriority && matchesStatus
+  })
+
+  const hasActiveFilters =
+    searchQuery.trim() !== '' ||
+    priorityFilter !== 'all' ||
+    statusFilter !== 'all'
+
   const completedTasks = tasks.filter(
     (task) => task.status === 'done'
   ).length
@@ -490,7 +515,69 @@ function App() {
 
           <div className="board-heading">
             <h2>Board overview</h2>
-            <span>{tasks.length} tasks</span>
+            <span>
+              {hasActiveFilters
+                ? `${filteredTasks.length} of ${tasks.length} tasks`
+                : `${tasks.length} tasks`}
+            </span>
+          </div>
+
+          <div className="filter-toolbar">
+            <div className="search-field">
+              <Search size={17} />
+
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search tasks..."
+                aria-label="Search tasks"
+              />
+            </div>
+
+            <select
+              className="filter-select"
+              value={priorityFilter}
+              onChange={(event) =>
+                setPriorityFilter(event.target.value as 'all' | TaskPriority)
+              }
+              aria-label="Filter by priority"
+            >
+              <option value="all">All priorities</option>
+              <option value="high">High priority</option>
+              <option value="normal">Normal priority</option>
+              <option value="low">Low priority</option>
+            </select>
+
+            <select
+              className="filter-select"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as 'all' | TaskStatus)
+              }
+              aria-label="Filter by status"
+            >
+              <option value="all">All statuses</option>
+              <option value="todo">To Do</option>
+              <option value="in_progress">In Progress</option>
+              <option value="in_review">In Review</option>
+              <option value="done">Done</option>
+            </select>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className="clear-filters"
+                onClick={() => {
+                  setSearchQuery('')
+                  setPriorityFilter('all')
+                  setStatusFilter('all')
+                }}
+              >
+                <X size={14} />
+                Clear
+              </button>
+            )}
           </div>
 
           {loading ? (
@@ -538,7 +625,7 @@ function App() {
                       id={column.id}
                       title={column.title}
                       color={column.color}
-                      tasks={tasks.filter(
+                      tasks={filteredTasks.filter(
                         (task) => task.status === column.id
                       )}
                       disabled={movingTaskId !== null}
