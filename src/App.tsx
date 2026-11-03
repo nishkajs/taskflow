@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   LayoutDashboard,
   Layers3,
@@ -11,6 +11,7 @@ import {
   Circle,
   Clock3,
   ListFilter,
+  X,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import './App.css'
@@ -46,6 +47,16 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshCount, setRefreshCount] = useState(0)
+
+
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [taskTitle, setTaskTitle] = useState('')
+  const [taskDescription, setTaskDescription] = useState('')
+  const [taskPriority, setTaskPriority] = useState<TaskPriority>('normal')
+  const [taskDueDate, setTaskDueDate] = useState('')
+  const [creatingTask, setCreatingTask] = useState(false)
+  const [taskError, setTaskError] = useState('')
+
 
   useEffect(() => {
     let active = true
@@ -107,6 +118,63 @@ function App() {
       active = false
     }
   }, [refreshCount])
+
+  function closeTaskModal() {
+    if (creatingTask) return
+
+    setIsModalOpen(false)
+    setTaskError('')
+  }
+
+  async function createTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const trimmedTitle = taskTitle.trim()
+
+    if (!trimmedTitle) {
+      setTaskError('Please enter a task title.')
+      return
+    }
+
+    if (!userId) {
+      setTaskError('Your guest session is not ready.')
+      return
+    }
+
+    setCreatingTask(true)
+    setTaskError('')
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+          title: trimmedTitle,
+          description: taskDescription.trim() || null,
+          status: 'todo',
+          priority: taskPriority,
+          due_date: taskDueDate || null,
+          user_id: userId,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setTasks((previousTasks) => [data as Task, ...previousTasks])
+
+      setTaskTitle('')
+      setTaskDescription('')
+      setTaskPriority('normal')
+      setTaskDueDate('')
+      setIsModalOpen(false)
+    } catch (err) {
+      setTaskError(
+        err instanceof Error ? err.message : 'Failed to create task.'
+      )
+    } finally {
+      setCreatingTask(false)
+    }
+  }
 
   const completedTasks = tasks.filter(
     (task) => task.status === 'done'
@@ -178,7 +246,14 @@ function App() {
                 Refresh
               </button>
 
-              <button className="primary-button" disabled>
+              <button
+                className="primary-button"
+                onClick={() => {
+                  setTaskError('')
+                  setIsModalOpen(true)
+                }}
+                disabled={loading || !!error || !userId}
+              >
                 <Plus size={18} />
                 New Task
               </button>
@@ -309,6 +384,124 @@ function App() {
           )}
         </div>
       </main>
+
+      {isModalOpen && (
+        <div
+          className="modal-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeTaskModal()
+            }
+          }}
+        >
+          <div
+            className="task-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-task-title"
+          >
+            <div className="modal-header">
+              <div>
+                <h2 id="create-task-title">Create new task</h2>
+                <p>Add a task to your workspace.</p>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close"
+                onClick={closeTaskModal}
+                disabled={creatingTask}
+                aria-label="Close dialog"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={createTask}>
+              <div className="form-field">
+                <label htmlFor="task-title">Task title *</label>
+                <input
+                  id="task-title"
+                  type="text"
+                  placeholder="What needs to be done?"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  maxLength={200}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="task-description">
+                  Description
+                </label>
+                <textarea
+                  id="task-description"
+                  placeholder="Add more details about this task..."
+                  value={taskDescription}
+                  onChange={(e) => setTaskDescription(e.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-field">
+                  <label htmlFor="task-priority">Priority</label>
+                  <select
+                    id="task-priority"
+                    value={taskPriority}
+                    onChange={(e) =>
+                      setTaskPriority(e.target.value as TaskPriority)
+                    }
+                  >
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="task-due-date">Due date</label>
+                  <input
+                    id="task-due-date"
+                    type="date"
+                    value={taskDueDate}
+                    onChange={(e) => setTaskDueDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {taskError && (
+                <div className="form-error" role="alert">
+                  <AlertCircle size={16} />
+                  <span>{taskError}</span>
+                </div>
+              )}
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={closeTaskModal}
+                  disabled={creatingTask}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={creatingTask}
+                >
+                  <Plus size={16} />
+                  {creatingTask ? 'Creating...' : 'Create Task'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
