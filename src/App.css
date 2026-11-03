@@ -800,3 +800,92 @@ button {
   color: inherit;
 }
 
+/* Task editing controls */
+
+.draggable-task {
+  cursor: default;
+  touch-action: auto;
+}
+
+.task-card-controls,
+.task-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drag-handle,
+.task-edit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: #9092a3;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+}
+
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle:hover,
+.task-edit-button:hover {
+  background: #393a49;
+  color: #e9e5ff;
+}
+
+.drag-handle:focus-visible,
+.task-edit-button:focus-visible {
+  outline: 2px solid #a99fff;
+  outline-offset: 2px;
+}
+
+.modal-actions {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-right-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.delete-button {
+  padding: 10px 12px;
+  color: #f0a0a0;
+  background: transparent;
+  border: 1px solid #754047;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.delete-button:hover:not(:disabled) {
+  background: #452b31;
+}
+
+.delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 500px) {
+  .modal-actions {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .modal-right-actions {
+    margin-left: auto;
+  }
+}
+

@@ -1,7 +1,12 @@
 
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { CalendarDays, Circle, GripVertical } from 'lucide-react'
+import {
+  CalendarDays,
+  Circle,
+  GripVertical,
+  Pencil,
+} from 'lucide-react'
 import type { CSSProperties } from 'react'
 
 type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done'
@@ -21,14 +26,17 @@ type KanbanColumnProps = {
   color: string
   tasks: Task[]
   disabled?: boolean
+  onEditTask: (taskId: string) => void
 }
 
 function DraggableTask({
   task,
   disabled = false,
+  onEditTask,
 }: {
   task: Task
   disabled?: boolean
+  onEditTask: (taskId: string) => void
 }) {
   const {
     attributes,
@@ -53,15 +61,21 @@ function DraggableTask({
       ref={setNodeRef}
       style={style}
       className={`task-card draggable-task ${isDragging ? 'dragging' : ''}`}
-      {...attributes}
-      {...listeners}
-      aria-label={`Drag ${task.title}`}
     >
       <div className="task-card-top">
-        <span className="task-type">
-          <GripVertical size={13} />
-          TASK
-        </span>
+        <div className="task-card-controls">
+          <button
+            type="button"
+            className="drag-handle"
+            {...attributes}
+            {...listeners}
+            disabled={disabled}
+            aria-label={`Drag ${task.title}`}
+          >
+            <GripVertical size={16} />
+          </button>
+          <span className="task-type">TASK</span>
+        </div>
 
         <span className={`priority-badge ${task.priority}`}>
           <span className="priority-dot" />
@@ -81,7 +95,18 @@ function DraggableTask({
           {task.due_date ?? 'No due date'}
         </span>
 
-        <div className="task-avatar">G</div>
+        <div className="task-footer-actions">
+          <button
+            type="button"
+            className="task-edit-button"
+            onClick={() => onEditTask(task.id)}
+            disabled={disabled}
+            aria-label={`Edit ${task.title}`}
+          >
+            <Pencil size={14} />
+          </button>
+          <div className="task-avatar">G</div>
+        </div>
       </div>
     </article>
   )
@@ -93,10 +118,9 @@ export default function KanbanColumn({
   color,
   tasks,
   disabled = false,
+  onEditTask,
 }: KanbanColumnProps) {
-  const { isOver, setNodeRef } = useDroppable({
-    id,
-  })
+  const { isOver, setNodeRef } = useDroppable({ id })
 
   return (
     <section className="kanban-column">
@@ -128,6 +152,7 @@ export default function KanbanColumn({
               key={task.id}
               task={task}
               disabled={disabled}
+              onEditTask={onEditTask}
             />
           ))
         )}

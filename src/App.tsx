@@ -60,6 +60,7 @@ function App() {
   const [moveError, setMoveError] = useState('')
 
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDescription, setTaskDescription] = useState('')
   const [taskPriority, setTaskPriority] = useState<TaskPriority>('normal')
@@ -137,10 +138,35 @@ function App() {
     }
   }, [refreshCount])
 
+  function openNewTaskModal() {
+    setEditingTask(null)
+    setTaskTitle('')
+    setTaskDescription('')
+    setTaskPriority('normal')
+    setTaskDueDate('')
+    setTaskError('')
+    setIsModalOpen(true)
+  }
+
+  function openEditTaskModal(taskId: string) {
+    const task = tasks.find((item) => item.id === taskId)
+
+    if (!task) return
+
+    setEditingTask(task)
+    setTaskTitle(task.title)
+    setTaskDescription(task.description ?? '')
+    setTaskPriority(task.priority)
+    setTaskDueDate(task.due_date ?? '')
+    setTaskError('')
+    setIsModalOpen(true)
+  }
+
   function closeTaskModal() {
     if (creatingTask) return
 
     setIsModalOpen(false)
+    setEditingTask(null)
     setTaskError('')
   }
 
@@ -188,6 +214,97 @@ function App() {
     } catch (err) {
       setTaskError(
         err instanceof Error ? err.message : 'Failed to create task.'
+      )
+    } finally {
+      setCreatingTask(false)
+    }
+  }
+
+  async function updateTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!editingTask || !userId) return
+
+    const trimmedTitle = taskTitle.trim()
+
+    if (!trimmedTitle) {
+      setTaskError('Task title cannot be empty.')
+      return
+    }
+
+    setCreatingTask(true)
+    setTaskError('')
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({
+          title: trimmedTitle,
+          description: taskDescription.trim() || null,
+          priority: taskPriority,
+          due_date: taskDueDate || null,
+        })
+        .eq('id', editingTask.id)
+        .eq('user_id', userId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setTasks((previousTasks) =>
+        previousTasks.map((task) =>
+          task.id === editingTask.id ? (data as Task) : task
+        )
+      )
+
+      setIsModalOpen(false)
+      setEditingTask(null)
+    } catch (err) {
+      setTaskError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to update task.'
+      )
+    } finally {
+      setCreatingTask(false)
+    }
+  }
+
+  async function deleteTask() {
+    if (!editingTask || !userId) return
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${editingTask.title}"?`
+    )
+
+    if (!confirmed) return
+
+    setCreatingTask(true)
+    setTaskError('')
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', editingTask.id)
+        .eq('user_id', userId)
+        .select('id')
+        .single()
+
+      if (error) throw error
+      if (!data) throw new Error('Task was not deleted')
+
+      setTasks((previousTasks) =>
+        previousTasks.filter((task) => task.id !== editingTask.id)
+      )
+
+      setIsModalOpen(false)
+      setEditingTask(null)
+    } catch (err) {
+      setTaskError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to delete task.'
       )
     } finally {
       setCreatingTask(false)
@@ -330,10 +447,7 @@ function App() {
 
               <button
                 className="primary-button"
-                onClick={() => {
-                  setTaskError('')
-                  setIsModalOpen(true)
-                }}
+                onClick={openNewTaskModal}
                 disabled={loading || !!error || !userId}
               >
                 <Plus size={18} />
@@ -428,6 +542,7 @@ function App() {
                         (task) => task.status === column.id
                       )}
                       disabled={movingTaskId !== null}
+                      onEditTask={openEditTaskModal}
                     />
                   ))}
                 </div>
@@ -454,8 +569,14 @@ function App() {
           >
             <div className="modal-header">
               <div>
-                <h2 id="create-task-title">Create new task</h2>
-                <p>Add a task to your workspace.</p>
+                <h2 id="create-task-title">
+                  {editingTask ? 'Edit task' : 'Create new task'}
+                </h2>
+                <p>
+                  {editingTask
+                    ? 'Update the details of your task.'
+                    : 'Add a task to your workspace.'}
+                </p>
               </div>
 
               <button
@@ -469,7 +590,7 @@ function App() {
               </button>
             </div>
 
-            <form onSubmit={createTask}>
+            <form onSubmit={editingTask ? updateTask : createTask}>
               <div className="form-field">
                 <label htmlFor="task-title">Task title *</label>
                 <input
@@ -532,23 +653,39 @@ function App() {
               )}
 
               <div className="modal-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={closeTaskModal}
-                  disabled={creatingTask}
-                >
-                  Cancel
-                </button>
+                {editingTask && (
+                  <button
+                    type="button"
+                    className="delete-button"
+                    onClick={deleteTask}
+                    disabled={creatingTask}
+                  >
+                    Delete Task
+                  </button>
+                )}
 
-                <button
-                  type="submit"
-                  className="primary-button"
-                  disabled={creatingTask}
-                >
-                  <Plus size={16} />
-                  {creatingTask ? 'Creating...' : 'Create Task'}
-                </button>
+                <div className="modal-right-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={closeTaskModal}
+                    disabled={creatingTask}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={creatingTask}
+                  >
+                    {creatingTask
+                      ? 'Saving...'
+                      : editingTask
+                        ? 'Save Changes'
+                        : 'Create Task'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
