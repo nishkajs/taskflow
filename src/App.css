@@ -977,3 +977,24 @@ button {
   }
 }
 
+
+/* Due dates */
+
+.task-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted, #9698a8);
+  font-size: 11px;
+}
+
+.task-date.due-overdue {
+  color: #ef9292;
+}
+
+.task-date.due-today,
+.task-date.due-soon {
+  color: #e5ac66;
+}
+
+

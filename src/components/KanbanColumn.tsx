@@ -8,6 +8,10 @@ import {
   Pencil,
 } from 'lucide-react'
 import type { CSSProperties } from 'react'
+import {
+  getDueDateStatus,
+  formatDueDate,
+} from '../lib/dueDate'
 
 type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done'
 
@@ -48,6 +52,16 @@ function DraggableTask({
     id: task.id,
     disabled,
   })
+
+  const dueDateStatus = getDueDateStatus(
+    task.due_date,
+    task.status === 'done'
+  )
+
+  const dueDateLabel = formatDueDate(
+    task.due_date,
+    dueDateStatus
+  )
 
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -90,9 +104,12 @@ function DraggableTask({
       )}
 
       <div className="task-card-footer">
-        <span className="task-date">
+        <span
+          className={`task-date due-${dueDateStatus}`}
+          title={task.due_date ?? 'No due date'}
+        >
           <CalendarDays size={13} />
-          {task.due_date ?? 'No due date'}
+          {dueDateLabel}
         </span>
 
         <div className="task-footer-actions">
